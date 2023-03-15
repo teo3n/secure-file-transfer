@@ -7,9 +7,10 @@ use std::net::TcpStream;
 
 fn main() {
     let mut ssl_connector = build_ssl_connector();
-    let stream = ssl_connector.connect("127.0.0.1:8888", ).unwrap();
+    let stream = TcpStream::connect("127.0.0.1:8888").unwrap();
+    let ssl_stream = ssl_connector.connect("127.0.0.1:8888", stream).unwrap();
 
-    handle_server(stream).unwrap();
+    handle_server(ssl_stream).unwrap();
 }
 
 fn build_ssl_connector() -> SslConnector {
