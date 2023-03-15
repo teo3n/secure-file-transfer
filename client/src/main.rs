@@ -7,10 +7,10 @@ use std::net::TcpStream;
 
 fn main() {
     let mut ssl_connector = build_ssl_connector();
-    let stream = TcpStream::connect("127.0.0.1:8888").unwrap();
-    let ssl_stream = ssl_connector.connect("127.0.0.1:8888", stream).unwrap();
+    let tcp_stream = TcpStream::connect("127.0.0.1:8888").unwrap();
+    let mut ssl_stream = ssl_connector.connect("127.0.0.1", tcp_stream).unwrap();
 
-    handle_server(ssl_stream).unwrap();
+    handle_server(&mut ssl_stream).unwrap();
 }
 
 fn build_ssl_connector() -> SslConnector {
@@ -19,7 +19,7 @@ fn build_ssl_connector() -> SslConnector {
     connector.build()
 }
 
-fn handle_server(mut ssl_stream: openssl::ssl::SslStream<TcpStream>) -> std::io::Result<()> {
+fn handle_server(ssl_stream: &mut openssl::ssl::SslStream<TcpStream>) -> std::io::Result<()> {
     let mut buf = [0; 1024];
     let mut session_key = [0; 32];
 
