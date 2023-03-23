@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 openssl = "0.10.46"
+ring = "0.16.20"
+rand = "0.8.5"

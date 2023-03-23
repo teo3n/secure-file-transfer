@@ -1,49 +1,43 @@
-use openssl::pkey::Public;
 use openssl::rsa::{Padding, Rsa};
-use openssl::ssl::HandshakeError;
-use openssl::ssl::{SslConnector, SslFiletype, SslMethod};
+use openssl::symm::{decrypt, Cipher};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
 fn main() {
-    let mut ssl_connector = build_ssl_connector();
-    let tcp_stream = TcpStream::connect("127.0.0.1:8888").unwrap();
-    let mut ssl_stream = ssl_connector.connect("127.0.0.1", tcp_stream).unwrap();
+    let mut stream = TcpStream::connect("127.0.0.1:8080").unwrap();
+    println!("connected");
 
-    handle_server(&mut ssl_stream).unwrap();
-}
+    // Receive the server's public key
+    // let mut public_key = Vec::new();
+    let mut public_key = [0u8; 294];
+    stream.read_exact(&mut public_key).unwrap();
+    println!("public key read with len {}", public_key.len());
 
-fn build_ssl_connector() -> SslConnector {
-    let mut connector = SslConnector::builder(SslMethod::tls()).unwrap();
-    connector.set_ca_file("server.crt").unwrap();
-    connector.build()
-}
+    let rsa_key = Rsa::public_key_from_der(&public_key).unwrap();
 
-fn handle_server(ssl_stream: &mut openssl::ssl::SslStream<TcpStream>) -> std::io::Result<()> {
-    let mut buf = [0; 1024];
-    let mut session_key = [0; 32];
+    // Generate a session key, encrypt it with the server's public key, and send it to the server
+    let mut session_key = [0u8; 32];
+    session_key[0] = 5;
+    session_key[10] = 15;
+    session_key[20] = 25;
 
-    // Step 1: client starts the session by connecting to the server
 
-    println!(
-        "Connected to server: {:?}",
-        ssl_stream.get_ref().peer_addr().unwrap()
-    );
+    // TODO: generate a random session key
 
-    // Step 2: server generates a public-private key pair and responds with its public key
-    ssl_stream.read(&mut buf).unwrap();
-    let pub_key = &buf[..];
-
-    // Step 3: client generates and encrypts a session-key with the public key and sends to the server
-    let rsa = Rsa::generate(2048).unwrap();
-    let encrypted_len = rsa
-        .public_encrypt(b"Hello, server!", &mut session_key, Padding::PKCS1)
+    let mut encrypted_session_key = [0u8; 256];
+    rsa_key
+        .public_encrypt(&session_key, &mut encrypted_session_key, Padding::PKCS1)
         .unwrap();
-    let session_key = &session_key[..encrypted_len];
+    stream.write_all(&encrypted_session_key).unwrap();
 
-    ssl_stream.write_all(session_key).unwrap();
+    // Receive an encrypted response message from the server, decrypt it with the session key, and print it
+    let mut encrypted_message = Vec::new();
+    stream.read_to_end(&mut encrypted_message).unwrap();
+    println!("message read");
 
-    // Step 4: server decrypts the session-key using its private key
+    let cipher = Cipher::aes_256_cbc();
+    let iv = [0u8; 16]; // Generate a random initialization vector for production use
+    let message = decrypt(cipher, &session_key, Some(&iv), &encrypted_message).unwrap();
 
-    Ok(())
+    println!("{}", String::from_utf8_lossy(&message));
 }

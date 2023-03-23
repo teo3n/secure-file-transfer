@@ -1,66 +1,60 @@
-use openssl::pkey::Private;
-use openssl::pkey::Public;
 use openssl::rsa::{Padding, Rsa};
-use openssl::ssl::HandshakeError;
-use openssl::ssl::{SslAcceptor, SslStream};
-use openssl::ssl::{SslFiletype, SslMethod};
+use openssl::symm::{encrypt, Cipher};
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpListener;
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:8888").unwrap();
-    let acceptor = build_ssl_acceptor();
+    let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
 
+    // Start listening for incoming connections
     for stream in listener.incoming() {
+        println!("incoming stream from");
         match stream {
-            Ok(stream) => {
-                let ssl_stream = acceptor.accept(stream).unwrap();
-                handle_client(ssl_stream).unwrap();
+            Ok(mut stream) => {
+                println!("stream ok");
+
+                // Generate a public-private key pair
+                let rsa_key = Rsa::generate(2048).unwrap();
+                println!("keys generated");
+
+                // Get the public key as a byte slice
+                let public_key = rsa_key.public_key_to_der().unwrap();
+                println!("public key with length {}", public_key.len());
+
+                // Send the public key to the client
+                stream.write_all(&public_key).unwrap();
+                println!("public key sent");
+
+                // Read the encrypted session key from the client
+                let mut encrypted_session_key = [0u8; 256];
+                stream.read_exact(&mut encrypted_session_key).unwrap();
+                println!("session key read");
+
+                // Decrypt the session key with the private key
+                let mut decrypted_session_key = [0u8; 32];
+                rsa_key
+                    .private_decrypt(
+                        &encrypted_session_key,
+                        &mut decrypted_session_key,
+                        Padding::PKCS1,
+                    )
+                    .unwrap();
+
+                println!("session key decrypted");
+
+                // Use the decrypted session key to encrypt and send a response message to the client
+                let message = "This is a secure message.".as_bytes();
+                let cipher = Cipher::aes_256_cbc();
+
+                let iv = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
+                let encrypted_message = encrypt(cipher, &decrypted_session_key, Some(iv), message).unwrap();
+                stream.write_all(&encrypted_message).unwrap();
+
+                println!("message written to remote");
             }
             Err(e) => {
-                eprintln!("Error: {}", e);
+                println!("Error: {}", e);
             }
         }
     }
-}
-
-fn build_ssl_acceptor() -> SslAcceptor {
-    let mut acceptor = SslAcceptor::mozilla_modern(SslMethod::tls()).unwrap();
-    acceptor
-        .set_private_key_file("server.key", SslFiletype::PEM)
-        .unwrap();
-    acceptor.set_certificate_chain_file("server.crt").unwrap();
-    acceptor.build()
-}
-
-fn handle_client(mut ssl_stream: SslStream<TcpStream>) -> std::io::Result<()> {
-    let mut buf = [0; 1024];
-    let mut session_key = [0; 32];
-
-    // Step 1: client starts the session by connecting to the server
-
-    println!(
-        "New client connected: {:?}",
-        ssl_stream.get_ref().peer_addr().unwrap()
-    );
-
-    // Step 2: server generates a public-private key pair and responds with its public key
-    let rsa = Rsa::generate(2048).unwrap();
-    let pub_key = rsa.public_key_to_pem().unwrap();
-
-    ssl_stream.write_all(pub_key.as_slice()).unwrap();
-
-    // Step 3: client generates and encrypts a session-key with the public key and sends to the server
-    ssl_stream.read(&mut buf).unwrap();
-
-    let decrypted_len = rsa
-        .private_decrypt(&buf, &mut session_key, Padding::PKCS1)
-        .unwrap();
-    let session_key = &session_key[..decrypted_len];
-
-    // Step 4: server decrypts the session-key using its private key
-
-    println!("Session key received: {:?}", session_key);
-
-    Ok(())
 }
