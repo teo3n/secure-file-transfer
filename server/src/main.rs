@@ -31,14 +31,10 @@ fn main() {
                 println!("session key read");
 
                 // Decrypt the session key with the private key
-                let mut decrypted_session_key = [0u8; 32];
-                rsa_key
-                    .private_decrypt(
-                        &encrypted_session_key,
-                        &mut decrypted_session_key,
-                        Padding::PKCS1,
-                    )
-                    .unwrap();
+                let mut decrypted_session_key = [0u8; 256];
+                rsa_key.private_decrypt(&encrypted_session_key, &mut decrypted_session_key, Padding::NONE).unwrap();
+
+                let session_key = &decrypted_session_key[0..32];
 
                 println!("session key decrypted");
 
@@ -47,7 +43,7 @@ fn main() {
                 let cipher = Cipher::aes_256_cbc();
 
                 let iv = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
-                let encrypted_message = encrypt(cipher, &decrypted_session_key, Some(iv), message).unwrap();
+                let encrypted_message = encrypt(cipher, session_key, Some(iv), message).unwrap();
                 stream.write_all(&encrypted_message).unwrap();
 
                 println!("message written to remote");
