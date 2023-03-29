@@ -1,3 +1,5 @@
 
-// pub const IV: &[u8; 16] = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
 pub const IV_LEN: usize = 16;
+pub const SESSION_KEY_LEN: usize = 32;
+pub const SESSION_KEY_FULL_LEN: usize = 256;
+pub const PUBLIC_KEY_LEN: usize = 294;

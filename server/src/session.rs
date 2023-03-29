@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
-use crate::consts::IV_LEN;
+use crate::consts::{IV_LEN, SESSION_KEY_FULL_LEN, SESSION_KEY_LEN};
 
 pub struct Session {
     pub session_key: Vec<u8>,
@@ -72,7 +72,7 @@ impl Session {
         println!("public key sent");
 
         // Read the encrypted session key from the client
-        let mut encrypted_session_key = [0u8; 256];
+        let mut encrypted_session_key = [0u8; SESSION_KEY_FULL_LEN];
         stream
             .borrow_mut()
             .read_exact(&mut encrypted_session_key)
@@ -80,7 +80,7 @@ impl Session {
         println!("session key read");
 
         // Decrypt the session key with the private key
-        let mut decrypted_session_key = [0u8; 256];
+        let mut decrypted_session_key = [0u8; SESSION_KEY_FULL_LEN];
         rsa_key
             .private_decrypt(
                 &encrypted_session_key,
@@ -89,7 +89,7 @@ impl Session {
             )
             .unwrap();
 
-        let session_key = &decrypted_session_key[0..32];
+        let session_key = &decrypted_session_key[..SESSION_KEY_LEN];
         println!("session key decrypted");
 
         let cipher = Cipher::aes_256_cbc();

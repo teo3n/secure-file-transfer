@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 use rand::rngs::OsRng;
 use std::net::TcpStream;
 
-use crate::consts::IV_LEN;
+use crate::consts::{IV_LEN, SESSION_KEY_LEN, SESSION_KEY_FULL_LEN, PUBLIC_KEY_LEN};
 
 pub struct Session {
     pub session_key: Vec<u8>,
@@ -58,10 +58,10 @@ impl Session {
         iv
     }
 
-    fn gen_session_key() -> [u8; 256] {
+    fn gen_session_key() -> [u8; SESSION_KEY_FULL_LEN] {
         let mut rng = OsRng;
-        let mut key = [0u8; 256];
-        rng.fill_bytes(&mut key[..32]);
+        let mut key = [0u8; SESSION_KEY_FULL_LEN];
+        rng.fill_bytes(&mut key[..SESSION_KEY_LEN]);
         key
     }
 
@@ -71,7 +71,7 @@ impl Session {
     
         // Receive the server's public key
         // let mut public_key = Vec::new();
-        let mut public_key = [0u8; 294];
+        let mut public_key = [0u8; PUBLIC_KEY_LEN];
         stream.read_exact(&mut public_key).unwrap();
         println!("public key read with len {}", public_key.len());
     
@@ -81,11 +81,11 @@ impl Session {
         // The actual session key is 32 bytes long and the rest is padding
         let session_key = Session::gen_session_key();
     
-        let mut encrypted_session_key = [0u8; 256];
+        let mut encrypted_session_key = [0u8; SESSION_KEY_FULL_LEN];
         rsa_key.public_encrypt(&session_key, &mut encrypted_session_key, Padding::NONE).unwrap();
         stream.write_all(&encrypted_session_key).unwrap();
     
-        let session_key = &session_key[0..32];
+        let session_key = &session_key[..SESSION_KEY_LEN];
         let cipher = Cipher::aes_256_cbc();
 
         println!("connection succesful");
