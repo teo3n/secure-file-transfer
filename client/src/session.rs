@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 use rand::rngs::OsRng;
 use std::net::TcpStream;
 
-use crate::consts::IV;
+use crate::consts::IV_LEN;
 
 pub struct Session {
     pub session_key: Vec<u8>,
@@ -16,7 +16,8 @@ pub struct Session {
 
 impl Session {
     pub fn decrypt(&self, encrypted_message: &Vec<u8>) -> String {
-        let message = decrypt(self.cipher, &self.session_key, Some(IV), encrypted_message).unwrap();
+        let iv: [u8; IV_LEN] = encrypted_message[..IV_LEN].try_into().unwrap();
+        let message = decrypt(self.cipher, &self.session_key, Some(&iv), &encrypted_message[IV_LEN..]).unwrap();
         String::from_utf8_lossy(&message).to_string()
     }
 
@@ -29,14 +30,17 @@ impl Session {
     }
 
     pub fn transmit(&self, bytes: &[u8]) {
-        let encrypted_message = encrypt(self.cipher, &self.session_key, Some(IV), bytes).unwrap();
+        let iv = self.gen_iv();
+        let encrypted_message = encrypt(self.cipher, &self.session_key, Some(&iv), bytes).unwrap();
+        let mut msg_with_iv = TryInto::<Vec<u8>>::try_into(iv).unwrap();
+        msg_with_iv.extend(encrypted_message);
 
         // write the length buffer
-        let len_buf = (encrypted_message.len() as u32).to_le_bytes();
+        let len_buf = (msg_with_iv.len() as u32).to_le_bytes();
         self.stream.borrow_mut().write_all(&len_buf).unwrap();
 
         // write the actual data buffer
-        self.stream.borrow_mut().write_all(&encrypted_message).unwrap();
+        self.stream.borrow_mut().write_all(&msg_with_iv).unwrap();
         self.stream.borrow_mut().flush().unwrap();
     }
 
@@ -45,6 +49,13 @@ impl Session {
         let recv_datalen = u32::from_le_bytes(lenbuf.try_into().unwrap());
 
         self.decrypt(&self.receive_message(recv_datalen as usize))
+    }
+
+    fn gen_iv(&self) -> [u8; IV_LEN] {
+        let mut rng = OsRng;
+        let mut iv = [0u8; IV_LEN];
+        rng.fill_bytes(&mut iv[..]);
+        iv
     }
 
     fn gen_session_key() -> [u8; 256] {
