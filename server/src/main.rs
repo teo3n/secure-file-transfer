@@ -16,7 +16,7 @@ fn main() {
                 println!("stream ok");
 
                 let session = Session::establish_connection(RefCell::new(stream));
-                session.transmit("this is a message".as_bytes());
+                session.transmit("message from the server".as_bytes());
                 println!("{:?}", session.receive());
 
             }
