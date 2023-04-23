@@ -15,10 +15,11 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn decrypt(&self, encrypted_message: &Vec<u8>) -> String {
+    pub fn decrypt_bytes(&self, encrypted_message: &Vec<u8>) -> Vec<u8> {
         let iv: [u8; IV_LEN] = encrypted_message[..IV_LEN].try_into().unwrap();
         let message = decrypt(self.cipher, &self.session_key, Some(&iv), &encrypted_message[IV_LEN..]).unwrap();
-        String::from_utf8_lossy(&message).to_string()
+
+        message
     }
 
     pub fn receive_message(&self, len: usize) -> Vec<u8> {
@@ -51,11 +52,16 @@ impl Session {
         self.stream.borrow_mut().flush().unwrap();
     }
 
-    pub fn receive(&self) -> String {
+    pub fn receive_bytes(&self) -> Vec<u8> {
         let lenbuf = self.receive_message(4);
         let recv_datalen = u32::from_le_bytes(lenbuf.try_into().unwrap());
 
-        self.decrypt(&self.receive_message(recv_datalen as usize))
+        self.decrypt_bytes(&self.receive_message(recv_datalen as usize))
+    }
+
+    pub fn receive_string(&self) -> String {
+        let dbytes = self.receive_bytes();
+        String::from_utf8_lossy(&dbytes).to_string()
     }
 
     pub fn establish_connection(stream: RefCell<TcpStream>) -> Self {

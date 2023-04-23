@@ -9,3 +9,5 @@ edition = "2021"
 openssl = "0.10.46"
 ring = "0.16.20"
 rand = "0.8.5"
+serde_json = "1.0.96"
+serde = { version = "1.0.153", features = ["derive"] }
