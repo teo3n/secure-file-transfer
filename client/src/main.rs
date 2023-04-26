@@ -13,10 +13,6 @@ use crate::{
     session::Session,
 };
 
-/**
- * TODO:
- *      - error handling
- */
 
 fn main() {
     let session = Session::establish_connection("127.0.0.1:8080");
