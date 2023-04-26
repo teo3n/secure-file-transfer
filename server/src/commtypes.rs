@@ -17,7 +17,7 @@ pub struct FileRequest {
 }
 
 impl FileRequest {
-    pub fn deserialize(jdata: &str) -> Self {
-        serde_json::from_str(jdata).unwrap()
+    pub fn deserialize(jdata: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(serde_json::from_str(jdata)?)
     }
 }

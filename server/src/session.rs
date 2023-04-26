@@ -15,19 +15,19 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn decrypt_bytes(&self, encrypted_message: &Vec<u8>) -> Vec<u8> {
-        let iv: [u8; IV_LEN] = encrypted_message[..IV_LEN].try_into().unwrap();
-        let message = decrypt(self.cipher, &self.session_key, Some(&iv), &encrypted_message[IV_LEN..]).unwrap();
+    pub fn decrypt_bytes(&self, encrypted_message: &Vec<u8>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let iv: [u8; IV_LEN] = encrypted_message[..IV_LEN].try_into()?;
+        let message = decrypt(self.cipher, &self.session_key, Some(&iv), &encrypted_message[IV_LEN..])?;
 
-        message
+        Ok(message)
     }
 
-    pub fn receive_message(&self, len: usize) -> Vec<u8> {
+    pub fn receive_message(&self, len: usize) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         // Receive an encrypted response message from the server, decrypt it with the session key
         let mut encrypted_message = vec![0; len];
-        self.stream.borrow_mut().read_exact(&mut encrypted_message).unwrap();
+        self.stream.borrow_mut().read_exact(&mut encrypted_message)?;
 
-        encrypted_message
+        Ok(encrypted_message)
     }
 
     fn gen_iv(&self) -> [u8; IV_LEN] {
@@ -37,52 +37,53 @@ impl Session {
         iv
     }
 
-    pub fn transmit(&self, bytes: &[u8]) {
+    pub fn transmit(&self, bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         let iv = self.gen_iv();
-        let encrypted_message = encrypt(self.cipher, &self.session_key, Some(&iv), bytes).unwrap();
-        let mut msg_with_iv = TryInto::<Vec<u8>>::try_into(iv).unwrap();
+        let encrypted_message = encrypt(self.cipher, &self.session_key, Some(&iv), bytes)?;
+        let mut msg_with_iv = TryInto::<Vec<u8>>::try_into(iv)?;
         msg_with_iv.extend(encrypted_message);
 
         // write the length buffer
         let len_buf = (msg_with_iv.len() as u32).to_le_bytes();
-        self.stream.borrow_mut().write_all(&len_buf).unwrap();
+        self.stream.borrow_mut().write_all(&len_buf)?;
 
         // write the actual data buffer
-        self.stream.borrow_mut().write_all(&msg_with_iv).unwrap();
-        self.stream.borrow_mut().flush().unwrap();
+        self.stream.borrow_mut().write_all(&msg_with_iv)?;
+        self.stream.borrow_mut().flush()?;
+
+        Ok(())
     }
 
-    pub fn receive_bytes(&self) -> Vec<u8> {
-        let lenbuf = self.receive_message(4);
+    pub fn receive_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let lenbuf = self.receive_message(4)?;
         let recv_datalen = u32::from_le_bytes(lenbuf.try_into().unwrap());
 
-        self.decrypt_bytes(&self.receive_message(recv_datalen as usize))
+        Ok(self.decrypt_bytes(&self.receive_message(recv_datalen as usize)?)?)
     }
 
-    pub fn receive_string(&self) -> String {
-        let dbytes = self.receive_bytes();
-        String::from_utf8_lossy(&dbytes).to_string()
+    pub fn receive_string(&self) -> Result<String, Box<dyn std::error::Error>> {
+        let dbytes = self.receive_bytes()?;
+        Ok(String::from_utf8_lossy(&dbytes).to_string())
     }
 
-    pub fn establish_connection(stream: RefCell<TcpStream>) -> Self {
+    pub fn establish_connection(stream: RefCell<TcpStream>) -> Result<Self, Box<dyn std::error::Error>> {
         // Generate a public-private key pair
-        let rsa_key = Rsa::generate(2048).unwrap();
+        let rsa_key = Rsa::generate(2048)?;
         println!("keys generated");
 
         // Get the public key as a byte slice
-        let public_key = rsa_key.public_key_to_der().unwrap();
+        let public_key = rsa_key.public_key_to_der()?;
         println!("public key with length {}", public_key.len());
 
         // Send the public key to the client
-        stream.borrow_mut().write_all(&public_key).unwrap();
+        stream.borrow_mut().write_all(&public_key)?;
         println!("public key sent");
 
         // Read the encrypted session key from the client
         let mut encrypted_session_key = [0u8; SESSION_KEY_FULL_LEN];
         stream
             .borrow_mut()
-            .read_exact(&mut encrypted_session_key)
-            .unwrap();
+            .read_exact(&mut encrypted_session_key)?;
         println!("session key read");
 
         // Decrypt the session key with the private key
@@ -92,8 +93,7 @@ impl Session {
                 &encrypted_session_key,
                 &mut decrypted_session_key,
                 Padding::NONE,
-            )
-            .unwrap();
+            )?;
 
         let session_key = &decrypted_session_key[..SESSION_KEY_LEN];
         println!("session key decrypted");
@@ -102,10 +102,10 @@ impl Session {
 
         println!("connection succesful");
 
-        Session {
+        Ok(Session {
             session_key: session_key.to_owned(),
             stream: stream,
             cipher,
-        }
+        })
     }
 }

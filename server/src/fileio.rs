@@ -21,7 +21,7 @@ pub fn get_files_in_folder(folder_path: &str) -> Vec<PathBuf> {
     files
 }
 
-pub fn files_to_serializeable(files: &Vec<PathBuf>) -> serde_json::Value {
+pub fn files_to_serializeable(files: &Vec<PathBuf>) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let finfo = FileInfo {
         files: files
             .into_iter()
@@ -33,13 +33,13 @@ pub fn files_to_serializeable(files: &Vec<PathBuf>) -> serde_json::Value {
             .collect::<Vec<_>>(),
     };
 
-    serde_json::to_value(&finfo).unwrap()
+    Ok(serde_json::to_value(&finfo)?)
 }
 
-pub fn file_to_buffer(file: &str) -> Vec<u8> {
-    let mut file_handle = File::open(file).unwrap();
+pub fn file_to_buffer(file: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let mut file_handle = File::open(file)?;
     let mut buffer = Vec::new();
 
-    file_handle.read_to_end(&mut buffer).unwrap();
-    buffer
+    file_handle.read_to_end(&mut buffer)?;
+    Ok(buffer)
 }
