@@ -14,6 +14,7 @@ pub mod consts;
 pub mod fileio;
 pub mod session;
 
+
 fn handler(stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
     println!("incoming stream from {:?}", stream.local_addr()?);
 
@@ -26,12 +27,19 @@ fn handler(stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
     let file_request = FileRequest::deserialize(&file_rqs)?;
     println!("file {} requested, transmitting", file_request.file);
 
+    // verify the file is valid
+    if !files.iter().map(|f| f.to_string_lossy()).collect::<String>().contains(&file_request.file) {
+        return Err("invalid file path in request!".into());
+    }
+
     let buffer = file_to_buffer(&file_request.file)?;
     session.transmit(&buffer)?;
     println!("{} bytes sent", buffer.len());
 
     Ok(())
 }
+
+
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
