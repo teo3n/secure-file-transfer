@@ -4,7 +4,7 @@ use std::{cell::RefCell, net::{TcpListener, TcpStream}};
 
 use crate::{
     commtypes::FileRequest,
-    consts::FILE_DB_PATH,
+    consts::{FILE_DB_PATH, AUTH_PWD, AUTH_FAILURE, AUTH_SUCCESS},
     fileio::{file_to_buffer, files_to_serializeable, get_files_in_folder},
     session::Session,
 };
@@ -19,6 +19,16 @@ fn handler(stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
     println!("incoming stream from {:?}", stream.local_addr()?);
 
     let session = Session::establish_connection(RefCell::new(stream))?;
+
+    // authenticate
+    let auth = session.receive_string()?;
+    if auth.trim() != AUTH_PWD {
+        session.transmit(AUTH_FAILURE.as_bytes())?;
+        return Err("authentication failed".into());
+    } else {
+        session.transmit(AUTH_SUCCESS.as_bytes())?;
+    }
+
     let files = get_files_in_folder(FILE_DB_PATH);
     session.transmit(files_to_serializeable(&files)?.to_string().as_bytes())?;
 

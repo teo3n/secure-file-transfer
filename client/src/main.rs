@@ -5,17 +5,34 @@ pub mod consts;
 pub mod fileio;
 pub mod session;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, io::Write};
 
 use crate::{
     commtypes::{FileInfo, FileRequest},
     fileio::write_buffer_to_file,
-    session::Session,
+    session::Session, consts::AUTH_SUCCESS,
 };
 
 
 fn main() {
     let session = Session::establish_connection("127.0.0.1:8080");
+
+    // authenticate
+    let mut passwd = String::new();
+
+    print!("password: ");
+    std::io::stdout().flush().unwrap();
+    std::io::stdin().read_line(&mut passwd).unwrap();
+    session.transmit(passwd.as_bytes());
+
+    let auth_status = session.receive_string();
+    if auth_status == AUTH_SUCCESS {
+        println!("authentication succesfull");
+    } else {
+        println!("authentication failed!");
+        return;
+    }
+
     let recv_files = FileInfo::deserialize(&session.receive_string());
 
     println!("files available:");
@@ -23,7 +40,8 @@ fn main() {
         println!("   {}: {}", fentry.index, fentry.path);
     });
 
-    println!("select file: ");
+    print!("select file: ");
+    std::io::stdout().flush().unwrap();
     let mut file_input = String::new();
     std::io::stdin().read_line(&mut file_input).unwrap();
     let file_index: usize = file_input.as_str().trim().parse().unwrap();

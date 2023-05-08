@@ -5,3 +5,7 @@ pub const SESSION_KEY_FULL_LEN: usize = 256;
 pub const PUBLIC_KEY_LEN: usize = 294;
 
 pub const FILE_DB_PATH: &str = "files";
+pub const AUTH_PWD: &str = "hunter2";
+
+pub const AUTH_SUCCESS: &str = "success"; 
+pub const AUTH_FAILURE: &str = "failure"; 
