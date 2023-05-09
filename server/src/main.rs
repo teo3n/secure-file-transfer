@@ -3,8 +3,8 @@ extern crate rand;
 use std::{cell::RefCell, net::{TcpListener, TcpStream}};
 
 use crate::{
-    commtypes::{FileRequest, hash_password},
-    consts::{FILE_DB_PATH, AUTH_PWD_HASH, AUTH_FAILURE, AUTH_SUCCESS},
+    commtypes::{FileRequest, hash_password, read_salt_hash, gen_salt, write_hash_to_file},
+    consts::{FILE_DB_PATH, AUTH_FAILURE, AUTH_SUCCESS, AUTH_PATH},
     fileio::{file_to_buffer, files_to_serializeable, get_files_in_folder},
     session::Session,
 };
@@ -22,16 +22,25 @@ fn handler(stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
 
     // authenticate
     let auth = session.receive_string()?;
-    let auth_hash = hash_password(&auth.trim())?;
-    println!("hashed authentication {}", &auth_hash);
 
-    if auth_hash != AUTH_PWD_HASH {
-        session.transmit(AUTH_FAILURE.as_bytes())?;
-        return Err("authentication failed".into());
+    if let Ok((salt, hash_ref)) = read_salt_hash(AUTH_PATH) {
+        let auth_hash = hash_password(&auth.trim(), &salt)?;
+    
+        if auth_hash != hash_ref {
+            session.transmit(AUTH_FAILURE.as_bytes())?;
+            return Err("authentication failed".into());
+        } else {
+            session.transmit(AUTH_SUCCESS.as_bytes())?;
+        }
     } else {
+        // save new password
+        let salt = gen_salt();
+        let auth_hash = hash_password(&auth.trim(), &salt)?;
+        write_hash_to_file(AUTH_PATH, &auth_hash, &salt)?;
+
         session.transmit(AUTH_SUCCESS.as_bytes())?;
     }
-
+    
     let files = get_files_in_folder(FILE_DB_PATH);
     session.transmit(files_to_serializeable(&files)?.to_string().as_bytes())?;
 
