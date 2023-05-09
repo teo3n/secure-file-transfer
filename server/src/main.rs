@@ -3,8 +3,8 @@ extern crate rand;
 use std::{cell::RefCell, net::{TcpListener, TcpStream}};
 
 use crate::{
-    commtypes::FileRequest,
-    consts::{FILE_DB_PATH, AUTH_PWD, AUTH_FAILURE, AUTH_SUCCESS},
+    commtypes::{FileRequest, hash_password},
+    consts::{FILE_DB_PATH, AUTH_PWD_HASH, AUTH_FAILURE, AUTH_SUCCESS},
     fileio::{file_to_buffer, files_to_serializeable, get_files_in_folder},
     session::Session,
 };
@@ -22,7 +22,10 @@ fn handler(stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
 
     // authenticate
     let auth = session.receive_string()?;
-    if auth.trim() != AUTH_PWD {
+    let auth_hash = hash_password(&auth.trim())?;
+    println!("hashed authentication {}", &auth_hash);
+
+    if auth_hash != AUTH_PWD_HASH {
         session.transmit(AUTH_FAILURE.as_bytes())?;
         return Err("authentication failed".into());
     } else {
