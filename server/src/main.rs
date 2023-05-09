@@ -1,19 +1,23 @@
 extern crate rand;
 
-use std::{cell::RefCell, net::{TcpListener, TcpStream}};
+use std::{
+    cell::RefCell,
+    net::{TcpListener, TcpStream},
+};
 
 use crate::{
-    commtypes::{FileRequest, hash_password, read_salt_hash, gen_salt, write_hash_to_file},
-    consts::{FILE_DB_PATH, AUTH_FAILURE, AUTH_SUCCESS, AUTH_PATH},
+    auth::{gen_salt, hash_password, read_salt_hash, write_hash_to_file},
+    commtypes::FileRequest,
+    consts::{AUTH_FAILURE, AUTH_PATH, AUTH_SUCCESS, FILE_DB_PATH},
     fileio::{file_to_buffer, files_to_serializeable, get_files_in_folder},
     session::Session,
 };
 
+pub mod auth;
 pub mod commtypes;
 pub mod consts;
 pub mod fileio;
 pub mod session;
-
 
 fn handler(stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
     println!("incoming stream from {:?}", stream.local_addr()?);
@@ -25,7 +29,7 @@ fn handler(stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
 
     if let Ok((salt, hash_ref)) = read_salt_hash(AUTH_PATH) {
         let auth_hash = hash_password(&auth.trim(), &salt)?;
-    
+
         if auth_hash != hash_ref {
             session.transmit(AUTH_FAILURE.as_bytes())?;
             return Err("authentication failed".into());
@@ -34,13 +38,14 @@ fn handler(stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
         }
     } else {
         // save new password
+
         let salt = gen_salt();
         let auth_hash = hash_password(&auth.trim(), &salt)?;
         write_hash_to_file(AUTH_PATH, &auth_hash, &salt)?;
 
         session.transmit(AUTH_SUCCESS.as_bytes())?;
     }
-    
+
     let files = get_files_in_folder(FILE_DB_PATH);
     session.transmit(files_to_serializeable(&files)?.to_string().as_bytes())?;
 
@@ -50,7 +55,12 @@ fn handler(stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
     println!("file {} requested, transmitting", file_request.file);
 
     // verify the file is valid
-    if !files.iter().map(|f| f.to_string_lossy()).collect::<String>().contains(&file_request.file) {
+    if !files
+        .iter()
+        .map(|f| f.to_string_lossy())
+        .collect::<String>()
+        .contains(&file_request.file)
+    {
         return Err("invalid file path in request!".into());
     }
 
@@ -60,8 +70,6 @@ fn handler(stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
-
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
